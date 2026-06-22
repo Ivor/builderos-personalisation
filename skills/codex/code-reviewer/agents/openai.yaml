@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sona Code Reviewer"
+  short_description: "Review code changes with Sona's workflow"
+  default_prompt: "Use $code-reviewer to review the current branch or a specific PR with Sona's review workflow."
+policy:
+  allow_implicit_invocation: true

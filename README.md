@@ -11,7 +11,8 @@ and before the agent starts.
 
 - Deep-merges safe Claude settings into `~/.claude/settings.json`.
 - Deep-merges safe Codex settings into `~/.codex/config.toml`.
-- Copies any repo-owned skills or agents from this repo into the VM user home.
+- Copies repo-owned Codex skills into the VM user home.
+- Installs selected Claude plugins from the Sona and caveman marketplaces.
 - Runs the Sona Docker preflight before the agent starts when the checked-out
   project looks like the Sona repo.
 - Leaves live environment variables, OAuth files, SSH keys, GitHub tokens, and
@@ -35,9 +36,9 @@ Do not commit:
 The current local Codex config contains MCP env tokens. Those are intentionally
 not copied here.
 
-Claude plugins and Codex skills are not enabled in config unless this repo also
-installs the corresponding assets or the BuilderOS base image is known to
-include them.
+Claude plugins are installed during preflight through `claude plugin
+marketplace add` and `claude plugin install`. Codex skills are vendored in this
+repo and copied into `~/.codex/skills`.
 
 ## Layout
 
@@ -132,3 +133,36 @@ agents/claude/<agent-name>.md
 
 The install script copies these into the matching home directories without
 deleting anything that was already present on the VM.
+
+## Claude Plugins
+
+`setup/install.sh` installs these Claude plugins when the `claude` CLI is
+available:
+
+- `sona-playwright@sona-marketplace`
+- `code-reviewer@sona-marketplace`
+- `doubledown@sona-marketplace`
+- `spec@sona-marketplace`
+- `caveman@caveman`
+
+The marketplace sources are:
+
+```bash
+claude plugin marketplace add --scope user sona-is/marketplace
+claude plugin marketplace add --scope user JuliusBrussee/caveman
+```
+
+Plugin install failures are non-fatal by default so a temporary marketplace or
+network failure does not prevent the VM from starting. To make plugin install
+failure block personalisation, set:
+
+```bash
+PERSONALISATION_PLUGIN_INSTALL_REQUIRED=true
+```
+
+## Codex Skills
+
+This repo vendors selected Codex skills under `skills/codex/`, including
+caveman, cavecrew, code-reviewer, hunk-review, log-flaky-test-from-failed-ci-run,
+phoenix-liveview-socket-pattern, and sona-playwright. `cmux` is intentionally
+not included.

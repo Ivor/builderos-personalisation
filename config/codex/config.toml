@@ -21,5 +21,20 @@ trust_level = "trusted"
 [mcp_servers.notion]
 url = "https://mcp.notion.com/mcp"
 
+[mcp_servers.tidewave_sona]
+url = "http://localhost:4000/tidewave/mcp"
+
+[mcp_servers.tidewave_sona.tools.get_docs]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.get_ecto_schemas]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.get_source_location]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.project_eval]
+approval_mode = "approve"
+
 # Do not commit [mcp_servers.*.env] token values here.
 # Let BuilderOS credentials, deploy-key references, or VM env injection provide secrets.

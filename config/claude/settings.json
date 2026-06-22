@@ -1,4 +1,25 @@
 {
+  "enabledPlugins": {
+    "sona-playwright@sona-marketplace": true,
+    "code-reviewer@sona-marketplace": true,
+    "doubledown@sona-marketplace": true,
+    "spec@sona-marketplace": true,
+    "caveman@caveman": true
+  },
+  "extraKnownMarketplaces": {
+    "sona-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "sona-is/marketplace"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "theme": "dark-daltonized"

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sona Playwright"
+  short_description: "Log in to local Sona with Playwright"
+  default_prompt: "Use $sona-playwright to log in to the local Sona dev app and verify the target page."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Log Flaky Test"
+  short_description: "Verify and file flaky CI tests"
+  default_prompt: "Log this failed GitHub Actions job as a flaky test if the evidence confirms it is flaky."
