@@ -7,6 +7,19 @@ log() {
   printf '[personalisation] %s\n' "$*"
 }
 
+sentinel_dir="${PERSONALISATION_STATE_DIR:-$HOME/.builderos-personalisation}"
+sentinel_log="$sentinel_dir/install.log"
+
+write_sentinel() {
+  mkdir -p "$sentinel_dir"
+  printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$sentinel_log"
+}
+
+log_step() {
+  log "$*"
+  write_sentinel "$*"
+}
+
 copy_dir_contents() {
   local src="$1"
   local dst="$2"
@@ -28,7 +41,7 @@ try_step() {
     return 0
   fi
 
-  log "warning: failed: $description"
+  log_step "warning: failed: $description"
 
   if [ "${PERSONALISATION_PLUGIN_INSTALL_REQUIRED:-false}" = "true" ]; then
     return 1
@@ -39,15 +52,15 @@ try_step() {
 
 install_claude_plugins() {
   if ! command -v claude >/dev/null 2>&1; then
-    log "claude CLI not found; skipping Claude plugins"
+    log_step "claude CLI not found; skipping Claude plugins"
     return 0
   fi
 
-  log "adding Claude plugin marketplaces"
+  log_step "adding Claude plugin marketplaces"
   try_step "add sona marketplace" claude plugin marketplace add --scope user sona-is/marketplace
   try_step "add caveman marketplace" claude plugin marketplace add --scope user JuliusBrussee/caveman
 
-  log "installing Claude plugins"
+  log_step "installing Claude plugins"
   for plugin in \
     sona-playwright@sona-marketplace \
     code-reviewer@sona-marketplace \
@@ -59,15 +72,17 @@ install_claude_plugins() {
   done
 }
 
-log "installing repo-owned Codex skills"
+log_step "started from $repo_root"
+
+log_step "installing repo-owned Codex skills"
 copy_dir_contents "$repo_root/skills/codex" "$HOME/.codex/skills"
 
-log "installing repo-owned Claude skills"
+log_step "installing repo-owned Claude skills"
 copy_dir_contents "$repo_root/skills/claude" "$HOME/.claude/skills"
 
-log "installing repo-owned Claude agents"
+log_step "installing repo-owned Claude agents"
 copy_dir_contents "$repo_root/agents/claude" "$HOME/.claude/agents"
 
 install_claude_plugins
 
-log "done"
+log_step "done"

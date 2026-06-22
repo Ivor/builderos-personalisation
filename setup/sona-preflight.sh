@@ -5,6 +5,19 @@ log() {
   printf '[sona-preflight] %s\n' "$*"
 }
 
+sentinel_dir="${PERSONALISATION_STATE_DIR:-$HOME/.builderos-personalisation}"
+sentinel_log="$sentinel_dir/sona-preflight.log"
+
+write_sentinel() {
+  mkdir -p "$sentinel_dir"
+  printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$sentinel_log"
+}
+
+log_step() {
+  log "$*"
+  write_sentinel "$*"
+}
+
 find_project_root() {
   if [ -n "${BUILDEROS_PROJECT_ROOT:-}" ]; then
     printf '%s\n' "$BUILDEROS_PROJECT_ROOT"
@@ -26,25 +39,6 @@ find_project_root() {
   return 1
 }
 
-wait_for_log_line() {
-  local container="$1"
-  local pattern="$2"
-  local timeout_seconds="$3"
-  local deadline
-
-  deadline=$((SECONDS + timeout_seconds))
-
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    if docker logs "$container" 2>&1 | grep -q "$pattern"; then
-      return 0
-    fi
-
-    sleep 5
-  done
-
-  return 1
-}
-
 docker_compose() {
   if command -v docker-compose >/dev/null 2>&1; then
     docker-compose "$@"
@@ -53,58 +47,49 @@ docker_compose() {
   fi
 }
 
-run_in_backend() {
-  docker exec sona-dev env -u DISABLE_OBAN zsh -lc "$1"
+backend_shell() {
+  docker_compose run --rm backend sh -lc "$1"
+}
+
+start_backend() {
+  if docker_compose config --services | grep -qx clickhouse; then
+    docker_compose up -d --scale clickhouse=0 backend
+  else
+    docker_compose up -d backend
+  fi
 }
 
 project_root="$(find_project_root || true)"
 
 if [ -z "$project_root" ]; then
-  log "no Sona project checkout found; skipping"
+  log_step "no Sona project checkout found; skipping"
   exit 0
 fi
 
 if [ ! -f "$project_root/docker-compose.yml" ] || [ ! -f "$project_root/backend/start-dev.sh" ]; then
-  log "project at $project_root is not the Sona Docker layout; skipping"
+  log_step "project at $project_root is not the Sona Docker layout; skipping"
   exit 0
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  log "docker is unavailable; skipping"
+  log_step "docker is unavailable; skipping"
   exit 0
 fi
 
 cd "$project_root"
 mkdir -p logs
 
-app_timeout="${SONA_PREFLIGHT_APP_TIMEOUT:-900}"
 compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
 
-log "project root: $project_root"
-
-if docker ps -a --format '{{.Names}}' | grep -qx 'sona-dev'; then
-  log "sona-dev container already exists; reusing it"
-else
-  log "building and starting dev container"
-  docker_compose run --build -d --service-ports --name sona-dev backend /app/start-dev.sh
-fi
-
-log "waiting for Phoenix readiness"
-if ! wait_for_log_line sona-dev "Access BackendWeb.Endpoint" "$app_timeout"; then
-  log "timed out waiting for Phoenix readiness after ${app_timeout}s"
-  docker logs --tail 120 sona-dev || true
-  exit 1
-fi
-
-log "preparing sona_test without touching the anonymised dev database"
-docker exec sona-postgres-1 dropdb -U postgres --if-exists sona_test
-docker exec sona-postgres-1 createdb -U postgres -T template0 sona_test
+log_step "project root: $project_root"
+log_step "starting backend via docker compose"
+start_backend
 
 if [ "$compile_test_env" = "true" ]; then
-  log "compiling MIX_ENV=test"
-  run_in_backend 'MIX_ENV=test mix compile'
+  log_step "compiling MIX_ENV=test via docker compose run --rm backend"
+  backend_shell 'MIX_ENV=test mix compile'
 else
-  log "test environment compile disabled"
+  log_step "test environment compile disabled"
 fi
 
-log "done"
+log_step "done"

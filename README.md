@@ -64,19 +64,29 @@ when it can find a checkout with both `docker-compose.yml` and
 
 The script:
 
-- starts the existing Compose backend path detached as `sona-dev`
-- waits for the Phoenix startup log line
-- creates only `sona_test` from `template0`
+- starts the existing Compose `backend` service detached
+- avoids starting ClickHouse when the Compose file defines it
 - compiles the test Mix environment with `MIX_ENV=test mix compile`
 
-All Mix commands run inside the existing `sona-dev` container. They use
-`env -u DISABLE_OBAN` so the test BEAM gets the normal test/runtime Oban queue
-config while the dev server process keeps its original Compose environment.
+All Mix commands run inside Docker through the Compose `backend` service. The
+script does not create or modify the anonymised dev database, and it does not
+install Elixir or Mix on the VM host.
+
+The script writes a sentinel log to:
+
+```text
+~/.builderos-personalisation/sona-preflight.log
+```
+
+`setup/install.sh` also writes:
+
+```text
+~/.builderos-personalisation/install.log
+```
 
 Useful overrides:
 
 ```bash
-SONA_PREFLIGHT_APP_TIMEOUT=900             # seconds to wait for Phoenix readiness
 SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip MIX_ENV=test compile
 BUILDEROS_PROJECT_ROOT=/home/dev/project
 ```
