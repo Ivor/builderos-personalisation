@@ -1,47 +1,4 @@
 {
-  "enabledPlugins": {
-    "skill-checker@ivors-claude-code-marketplace": true,
-    "elixir-quick-context@ivors-claude-code-marketplace": true,
-    "sona-playwright@sona-marketplace": true,
-    "transcript-reader@ivors-claude-code-marketplace": true,
-    "skill-optimizer@ivors-claude-code-marketplace": true,
-    "code-reviewer@sona-marketplace": true,
-    "doubledown@sona-marketplace": true,
-    "caveman@caveman": true
-  },
-  "extraKnownMarketplaces": {
-    "ivors-claude-code-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "Ivor/claude-code-marketplace"
-      },
-      "autoUpdate": true
-    },
-    "sona-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "sona-is/marketplace"
-      }
-    },
-    "oliver-kriska": {
-      "source": {
-        "source": "github",
-        "repo": "oliver-kriska/claude-elixir-phoenix"
-      }
-    },
-    "claude-code-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
-      }
-    },
-    "caveman": {
-      "source": {
-        "source": "github",
-        "repo": "JuliusBrussee/caveman"
-      }
-    }
-  },
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "theme": "dark-daltonized"

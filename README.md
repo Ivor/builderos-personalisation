@@ -35,6 +35,10 @@ Do not commit:
 The current local Codex config contains MCP env tokens. Those are intentionally
 not copied here.
 
+Claude plugins and Codex skills are not enabled in config unless this repo also
+installs the corresponding assets or the BuilderOS base image is known to
+include them.
+
 ## Layout
 
 ```text
