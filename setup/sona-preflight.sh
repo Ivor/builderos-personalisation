@@ -56,12 +56,35 @@ backend_shell() {
   docker_compose run --rm backend sh -lc "$1"
 }
 
+backend_exec() {
+  docker_compose exec -T backend sh -lc "$1"
+}
+
 start_backend() {
   if docker_compose config --services | grep -qx clickhouse; then
     docker_compose up -d --scale clickhouse=0 backend
   else
     docker_compose up -d backend
   fi
+}
+
+wait_for_backend_deps() {
+  local timeout_seconds="$1"
+  local deadline=$((SECONDS + timeout_seconds))
+
+  log_step "waiting for backend deps"
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if backend_exec 'test -d /app/deps/phoenix'; then
+      log_step "backend deps ready"
+      return 0
+    fi
+
+    sleep 5
+  done
+
+  log_step "timed out waiting for backend deps after ${timeout_seconds}s"
+  return 1
 }
 
 start_background_worker() {
@@ -83,6 +106,7 @@ start_background_worker() {
 run_preflight() {
   local project_root
   local compile_test_env
+  local deps_timeout
 
   project_root="$(find_project_root || true)"
 
@@ -105,14 +129,16 @@ run_preflight() {
   mkdir -p logs
 
   compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
+  deps_timeout="${SONA_PREFLIGHT_DEPS_TIMEOUT:-600}"
 
   log_step "project root: $project_root"
   log_step "starting backend via docker compose"
   start_backend
 
   if [ "$compile_test_env" = "true" ]; then
+    wait_for_backend_deps "$deps_timeout"
     log_step "compiling MIX_ENV=test via docker compose run --rm backend"
-    backend_shell 'MIX_ENV=test mix compile'
+    backend_shell 'MIX_ENV=test mix deps.get && MIX_ENV=test mix compile'
   else
     log_step "test environment compile disabled"
   fi

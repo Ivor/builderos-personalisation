@@ -69,6 +69,7 @@ The script:
 - returns immediately so the agent can start while Docker setup continues
 - starts the existing Compose `backend` service detached
 - avoids starting ClickHouse when the Compose file defines it
+- waits for backend dependencies to appear in the running backend container
 - compiles the test Mix environment with `MIX_ENV=test mix compile`
 
 All Mix commands run inside Docker through the Compose `backend` service. The
@@ -104,6 +105,7 @@ Useful overrides:
 ```bash
 SONA_PREFLIGHT_BACKGROUND=false            # run preflight synchronously
 SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip MIX_ENV=test compile
+SONA_PREFLIGHT_DEPS_TIMEOUT=600            # seconds to wait for backend deps
 BUILDEROS_PROJECT_ROOT=/home/dev/project
 ```
 
