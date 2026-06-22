@@ -1,0 +1,40 @@
+personality = "pragmatic"
+model_reasoning_effort = "xhigh"
+
+[tui]
+notifications = true
+status_line = ["model-with-reasoning", "current-dir", "git-branch", "permissions", "approval-mode", "context-remaining", "fast-mode"]
+status_line_use_colors = true
+
+[notice]
+fast_default_opt_out = true
+
+[features]
+terminal_resize_reflow = true
+
+[projects."/home/dev/project"]
+trust_level = "trusted"
+
+[projects."/home/dev/project/backend"]
+trust_level = "trusted"
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[mcp_servers.tidewave_sona]
+url = "http://localhost:4000/tidewave/mcp"
+
+[mcp_servers.tidewave_sona.tools.get_docs]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.get_ecto_schemas]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.get_source_location]
+approval_mode = "approve"
+
+[mcp_servers.tidewave_sona.tools.project_eval]
+approval_mode = "approve"
+
+# Do not commit [mcp_servers.*.env] token values here.
+# Let BuilderOS credentials, deploy-key references, or VM env injection provide secrets.

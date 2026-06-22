@@ -1,0 +1,17 @@
+apply:
+  - merge_config:
+      target: ~/.claude/settings.json
+      from: config/claude/settings.json
+      format: json
+  - merge_config:
+      target: ~/.codex/config.toml
+      from: config/codex/config.toml
+      format: toml
+  - run_script:
+      script: setup/install.sh
+      run_as: dev
+      sudo: false
+  - run_script:
+      script: setup/sona-preflight.sh
+      run_as: dev
+      sudo: false
