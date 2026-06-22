@@ -64,6 +64,9 @@ when it can find a checkout with both `docker-compose.yml` and
 
 The script:
 
+- copies itself into `~/.builderos-personalisation/` and starts a background
+  worker
+- returns immediately so the agent can start while Docker setup continues
 - starts the existing Compose `backend` service detached
 - avoids starting ClickHouse when the Compose file defines it
 - compiles the test Mix environment with `MIX_ENV=test mix compile`
@@ -78,6 +81,18 @@ The script writes a sentinel log to:
 ~/.builderos-personalisation/sona-preflight.log
 ```
 
+The background worker's stdout/stderr goes to:
+
+```text
+~/.builderos-personalisation/sona-preflight.out
+```
+
+The worker PID is written to:
+
+```text
+~/.builderos-personalisation/sona-preflight.pid
+```
+
 `setup/install.sh` also writes:
 
 ```text
@@ -87,6 +102,7 @@ The script writes a sentinel log to:
 Useful overrides:
 
 ```bash
+SONA_PREFLIGHT_BACKGROUND=false            # run preflight synchronously
 SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip MIX_ENV=test compile
 BUILDEROS_PROJECT_ROOT=/home/dev/project
 ```

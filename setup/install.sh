@@ -72,10 +72,25 @@ install_claude_plugins() {
   done
 }
 
+install_codex_config_if_missing() {
+  local src="$repo_root/config/codex/config.toml"
+  local dst="$HOME/.codex/config.toml"
+
+  if [ ! -f "$src" ] || [ -f "$dst" ]; then
+    return 0
+  fi
+
+  log_step "installing Codex config fallback"
+  mkdir -p "$(dirname "$dst")"
+  cp "$src" "$dst"
+}
+
 log_step "started from $repo_root"
 
 log_step "installing repo-owned Codex skills"
 copy_dir_contents "$repo_root/skills/codex" "$HOME/.codex/skills"
+
+install_codex_config_if_missing
 
 log_step "installing repo-owned Claude skills"
 copy_dir_contents "$repo_root/skills/claude" "$HOME/.claude/skills"

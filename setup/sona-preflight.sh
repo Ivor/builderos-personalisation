@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
 log() {
   printf '[sona-preflight] %s\n' "$*"
 }
 
 sentinel_dir="${PERSONALISATION_STATE_DIR:-$HOME/.builderos-personalisation}"
 sentinel_log="$sentinel_dir/sona-preflight.log"
+sentinel_out="$sentinel_dir/sona-preflight.out"
+sentinel_pid="$sentinel_dir/sona-preflight.pid"
+worker_script="$sentinel_dir/sona-preflight-worker.sh"
 
 write_sentinel() {
   mkdir -p "$sentinel_dir"
@@ -59,37 +64,69 @@ start_backend() {
   fi
 }
 
-project_root="$(find_project_root || true)"
+start_background_worker() {
+  mkdir -p "$sentinel_dir"
+  : >"$sentinel_out"
+  cp "$script_path" "$worker_script"
+  chmod +x "$worker_script"
 
-if [ -z "$project_root" ]; then
-  log_step "no Sona project checkout found; skipping"
+  log_step "starting background worker"
+  env \
+    PERSONALISATION_STATE_DIR="$sentinel_dir" \
+    SONA_PREFLIGHT_BACKGROUND_WORKER=true \
+    nohup bash "$worker_script" >"$sentinel_out" 2>&1 &
+
+  printf '%s\n' "$!" >"$sentinel_pid"
+  log_step "background worker pid: $!"
+}
+
+run_preflight() {
+  local project_root
+  local compile_test_env
+
+  project_root="$(find_project_root || true)"
+
+  if [ -z "$project_root" ]; then
+    log_step "no Sona project checkout found; skipping"
+    return 0
+  fi
+
+  if [ ! -f "$project_root/docker-compose.yml" ] || [ ! -f "$project_root/backend/start-dev.sh" ]; then
+    log_step "project at $project_root is not the Sona Docker layout; skipping"
+    return 0
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    log_step "docker is unavailable; skipping"
+    return 0
+  fi
+
+  cd "$project_root"
+  mkdir -p logs
+
+  compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
+
+  log_step "project root: $project_root"
+  log_step "starting backend via docker compose"
+  start_backend
+
+  if [ "$compile_test_env" = "true" ]; then
+    log_step "compiling MIX_ENV=test via docker compose run --rm backend"
+    backend_shell 'MIX_ENV=test mix compile'
+  else
+    log_step "test environment compile disabled"
+  fi
+}
+
+if [ "${SONA_PREFLIGHT_BACKGROUND_WORKER:-false}" != "true" ] && [ "${SONA_PREFLIGHT_BACKGROUND:-true}" = "true" ]; then
+  start_background_worker
   exit 0
 fi
 
-if [ ! -f "$project_root/docker-compose.yml" ] || [ ! -f "$project_root/backend/start-dev.sh" ]; then
-  log_step "project at $project_root is not the Sona Docker layout; skipping"
-  exit 0
+if [ "${SONA_PREFLIGHT_BACKGROUND_WORKER:-false}" = "true" ]; then
+  log_step "background worker started"
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  log_step "docker is unavailable; skipping"
-  exit 0
-fi
+trap 'status=$?; set +e; if [ "$status" -eq 0 ]; then log_step "done"; else log_step "failed with exit $status"; fi' EXIT
 
-cd "$project_root"
-mkdir -p logs
-
-compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
-
-log_step "project root: $project_root"
-log_step "starting backend via docker compose"
-start_backend
-
-if [ "$compile_test_env" = "true" ]; then
-  log_step "compiling MIX_ENV=test via docker compose run --rm backend"
-  backend_shell 'MIX_ENV=test mix compile'
-else
-  log_step "test environment compile disabled"
-fi
-
-log_step "done"
+run_preflight
