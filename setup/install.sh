@@ -50,6 +50,55 @@ try_step() {
   return 0
 }
 
+retry_step() {
+  local description="$1"
+  local attempts="$2"
+  local sleep_seconds="$3"
+  shift 3
+
+  local attempt
+  for attempt in $(seq 1 "$attempts"); do
+    if "$@"; then
+      return 0
+    fi
+
+    if [ "$attempt" -lt "$attempts" ]; then
+      sleep "$sleep_seconds"
+    fi
+  done
+
+  log_step "warning: failed after ${attempts} attempts: $description"
+
+  if [ "${PERSONALISATION_PLUGIN_INSTALL_REQUIRED:-false}" = "true" ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+claude_plugin_enabled() {
+  local plugin="$1"
+
+  [ "$(claude plugin list | awk -v plugin="$plugin" '
+    index($0, plugin) { found = 1; next }
+    found && /Status:/ {
+      if ($0 ~ /enabled/) { print "yes" } else { print "no" }
+      exit
+    }
+  ')" = "yes" ]
+}
+
+enable_claude_plugin() {
+  local plugin="$1"
+
+  if claude_plugin_enabled "$plugin"; then
+    return 0
+  fi
+
+  claude plugin enable --scope user "$plugin" >/dev/null 2>&1 || true
+  claude_plugin_enabled "$plugin"
+}
+
 install_claude_plugins() {
   if ! command -v claude >/dev/null 2>&1; then
     log_step "claude CLI not found; skipping Claude plugins"
@@ -75,13 +124,12 @@ install_claude_plugins() {
 
   log_step "enabling Claude plugins"
   for plugin in "${plugins[@]}"; do
-    try_step "enable $plugin" claude plugin enable --scope user "$plugin"
+    retry_step "enable $plugin" 10 2 enable_claude_plugin "$plugin"
   done
 
   log_step "verifying Claude plugins"
   for plugin in "${plugins[@]}"; do
-    try_step "verify $plugin enabled" sh -c \
-      "claude plugin list | grep -A4 -F '$plugin' | grep -q 'Status: .*enabled'"
+    retry_step "verify $plugin enabled" 5 2 claude_plugin_enabled "$plugin"
   done
 }
 
