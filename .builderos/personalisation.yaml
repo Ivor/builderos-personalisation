@@ -1,10 +1,10 @@
 apply:
   - merge_config:
-      target: ~/.claude/settings.json
+      target: /home/dev/.claude/settings.json
       from: config/claude/settings.json
       format: json
   - merge_config:
-      target: ~/.codex/config.toml
+      target: /home/dev/.codex/config.toml
       from: config/codex/config.toml
       format: toml
   - run_script:
