@@ -56,19 +56,32 @@ install_claude_plugins() {
     return 0
   fi
 
+  local plugins=(
+    sona-playwright@sona-marketplace
+    code-reviewer@sona-marketplace
+    doubledown@sona-marketplace
+    spec@sona-marketplace
+    caveman@caveman
+  )
+
   log_step "adding Claude plugin marketplaces"
   try_step "add sona marketplace" claude plugin marketplace add --scope user sona-is/marketplace
   try_step "add caveman marketplace" claude plugin marketplace add --scope user JuliusBrussee/caveman
 
   log_step "installing Claude plugins"
-  for plugin in \
-    sona-playwright@sona-marketplace \
-    code-reviewer@sona-marketplace \
-    doubledown@sona-marketplace \
-    spec@sona-marketplace \
-    caveman@caveman
-  do
+  for plugin in "${plugins[@]}"; do
     try_step "install $plugin" claude plugin install --scope user "$plugin"
+  done
+
+  log_step "enabling Claude plugins"
+  for plugin in "${plugins[@]}"; do
+    try_step "enable $plugin" claude plugin enable --scope user "$plugin"
+  done
+
+  log_step "verifying Claude plugins"
+  for plugin in "${plugins[@]}"; do
+    try_step "verify $plugin enabled" sh -c \
+      "claude plugin list | grep -A4 -F '$plugin' | grep -q 'Status: .*enabled'"
   done
 }
 
