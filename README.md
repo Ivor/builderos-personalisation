@@ -70,11 +70,20 @@ The script:
 - starts the existing Compose `backend` service detached
 - avoids starting ClickHouse when the Compose file defines it
 - waits for backend dependencies to appear in the running backend container
-- compiles the test Mix environment with `MIX_ENV=test mix compile`
+- waits for the Compose `postgres` service to accept connections
+- clears stale `pg_database.datcollversion` records and pre-creates the
+  `sona_test` database from `template0`, so the first `mix test` does not abort
+  on the `ecto.create` collation-version check
+- migrates the test database with `MIX_ENV=test mix ecto.migrate --quiet`
+- warms the test Mix build with `MIX_ENV=test mix compile`
+- builds the dialyzer PLTs with `mix dialyzer --plt` so the first real
+  `mix dialyzer` run only does analysis
 
-All Mix commands run inside Docker through the Compose `backend` service. The
-script does not create or modify the anonymised dev database, and it does not
-install Elixir or Mix on the VM host.
+All Mix and psql commands run inside the already-running Compose `backend` and
+`postgres` services via `docker compose exec` — never `docker compose run --rm`,
+which would spin up throwaway containers. The script does not create or modify
+the anonymised dev database, and it does not install Elixir or Mix on the VM
+host.
 
 The script writes a sentinel log to:
 
@@ -104,8 +113,10 @@ Useful overrides:
 
 ```bash
 SONA_PREFLIGHT_BACKGROUND=false            # run preflight synchronously
-SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip MIX_ENV=test compile
+SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip test DB prep + MIX_ENV=test compile
+SONA_PREFLIGHT_DIALYZER=false              # skip dialyzer PLT warmup
 SONA_PREFLIGHT_DEPS_TIMEOUT=600            # seconds to wait for backend deps
+SONA_PREFLIGHT_POSTGRES_TIMEOUT=120        # seconds to wait for postgres
 BUILDEROS_PROJECT_ROOT=/home/dev/project
 ```
 

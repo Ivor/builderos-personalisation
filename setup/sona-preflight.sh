@@ -52,12 +52,12 @@ docker_compose() {
   fi
 }
 
-backend_shell() {
-  docker_compose run --rm backend sh -lc "$1"
-}
-
 backend_exec() {
   docker_compose exec -T backend sh -lc "$1"
+}
+
+postgres_exec() {
+  docker_compose exec -T postgres "$@"
 }
 
 start_backend() {
@@ -87,6 +87,43 @@ wait_for_backend_deps() {
   return 1
 }
 
+wait_for_postgres() {
+  local timeout_seconds="$1"
+  local deadline=$((SECONDS + timeout_seconds))
+
+  log_step "waiting for postgres"
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if postgres_exec pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+      log_step "postgres ready"
+      return 0
+    fi
+
+    sleep 3
+  done
+
+  log_step "timed out waiting for postgres after ${timeout_seconds}s"
+  return 1
+}
+
+# The Postgres data volume was built with a different libc than the running
+# image, so any database cloned from the default template1 aborts with
+# "template database template1 has a collation version, but no actual collation
+# version could be determined". The test mix alias runs ecto.create, so mix test
+# fails unless sona_test already exists. Clear the stale collation-version
+# records (the actual fix) and pre-create sona_test from the pristine template0.
+prepare_test_database() {
+  log_step "clearing stale collation version records"
+  postgres_exec psql -U postgres -d postgres -c "UPDATE pg_database SET datcollversion = NULL;"
+
+  if postgres_exec psql -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='sona_test'" | grep -q 1; then
+    log_step "sona_test already exists"
+  else
+    log_step "creating sona_test from template0"
+    postgres_exec psql -U postgres -d postgres -c "CREATE DATABASE sona_test TEMPLATE template0;"
+  fi
+}
+
 start_background_worker() {
   mkdir -p "$sentinel_dir"
   : >"$sentinel_out"
@@ -106,7 +143,9 @@ start_background_worker() {
 run_preflight() {
   local project_root
   local compile_test_env
+  local dialyzer_warmup
   local deps_timeout
+  local postgres_timeout
 
   project_root="$(find_project_root || true)"
 
@@ -129,18 +168,38 @@ run_preflight() {
   mkdir -p logs
 
   compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
+  dialyzer_warmup="${SONA_PREFLIGHT_DIALYZER:-true}"
   deps_timeout="${SONA_PREFLIGHT_DEPS_TIMEOUT:-600}"
+  postgres_timeout="${SONA_PREFLIGHT_POSTGRES_TIMEOUT:-120}"
 
   log_step "project root: $project_root"
   log_step "starting backend via docker compose"
   start_backend
 
-  if [ "$compile_test_env" = "true" ]; then
+  if [ "$compile_test_env" = "true" ] || [ "$dialyzer_warmup" = "true" ]; then
     wait_for_backend_deps "$deps_timeout"
-    log_step "compiling MIX_ENV=test via docker compose run --rm backend"
-    backend_shell 'MIX_ENV=test mix deps.get && MIX_ENV=test mix compile'
+  fi
+
+  if [ "$compile_test_env" = "true" ]; then
+    wait_for_postgres "$postgres_timeout"
+    prepare_test_database
+    log_step "running MIX_ENV=test ecto.migrate in backend container"
+    backend_exec 'MIX_ENV=test mix ecto.migrate --quiet'
+    log_step "warming MIX_ENV=test build in backend container"
+    backend_exec 'MIX_ENV=test mix compile'
   else
     log_step "test environment compile disabled"
+  fi
+
+  # Build the dialyzer PLTs (the slow part) so the agent's first `mix dialyzer`
+  # is analysis-only and fast. PLTs are per-MIX_ENV; warm the same dev env the
+  # agent runs dialyzer in. Runs in the same backend container, in the
+  # background worker, so it never blocks agent startup.
+  if [ "$dialyzer_warmup" = "true" ]; then
+    log_step "warming dialyzer PLT in backend container"
+    backend_exec 'mix dialyzer --plt'
+  else
+    log_step "dialyzer PLT warmup disabled"
   fi
 }
 
