@@ -54,7 +54,17 @@ skills/
   codex/
 agents/
   claude/
+SUGGESTED_AGENTS.md
 ```
+
+## Suggested Agent Instructions
+
+`SUGGESTED_AGENTS.md` is a reference system prompt for the FV agent running in a
+Sona VM. It is not applied automatically — copy it into the agent
+configuration. It documents the Docker Compose workflow (run everything via
+`docker compose exec -T backend`, never `run --rm`), the `sona_test` database
+and collation fix, and the dialyzer/test-build warmup that `setup/sona-preflight.sh`
+performs.
 
 ## Sona Preflight
 
