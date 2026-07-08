@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# -E so the ERR trap is inherited into functions; without it a failure inside
+# wait_for_*/prepare_test_database/backend_exec would abort silently.
+set -Eeuo pipefail
 
 script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
@@ -11,14 +13,26 @@ sentinel_dir="${PERSONALISATION_STATE_DIR:-$HOME/.builderos-personalisation}"
 sentinel_log="$sentinel_dir/sona-preflight.log"
 sentinel_out="$sentinel_dir/sona-preflight.out"
 sentinel_pid="$sentinel_dir/sona-preflight.pid"
+sentinel_status="$sentinel_dir/sona-preflight.status"
 worker_script="$sentinel_dir/sona-preflight-worker.sh"
+
+# The step currently running, so the ERR/EXIT traps can name what failed
+# instead of only reporting an exit code.
+current_step="starting"
 
 write_sentinel() {
   mkdir -p "$sentinel_dir"
   printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$sentinel_log"
 }
 
+# A single-line machine-readable status agents can cat: running | ok | failed
+write_status() {
+  mkdir -p "$sentinel_dir"
+  printf '%s\n' "$*" >"$sentinel_status"
+}
+
 log_step() {
+  current_step="$*"
   log "$*"
   write_sentinel "$*"
 }
@@ -209,8 +223,15 @@ fi
 
 if [ "${SONA_PREFLIGHT_BACKGROUND_WORKER:-false}" = "true" ]; then
   log_step "background worker started"
+  write_status "running"
 fi
 
-trap 'status=$?; set +e; if [ "$status" -eq 0 ]; then log_step "done"; else log_step "failed with exit $status"; fi' EXIT
+# ERR fires at the exact failing command (before EXIT), so we capture which
+# step, which line, and the command itself — the info the old "exit N" hid.
+# No `set +e` here: it would disable errexit for the rest of the script and
+# defeat fail-fast. The trap body only appends to a log, so it can't trip errexit.
+trap 'rc=$?; write_sentinel "ERROR exit $rc at line $LINENO during step \"$current_step\" (cmd: $BASH_COMMAND)"' ERR
+
+trap 'status=$?; set +e; if [ "$status" -eq 0 ]; then log_step "done"; write_status "ok"; else write_sentinel "FAILED exit $status during step \"$current_step\""; write_status "failed: $current_step (exit $status)"; fi' EXIT
 
 run_preflight

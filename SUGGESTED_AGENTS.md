@@ -58,6 +58,17 @@ find and monitor those running compile processes (or watch
 `~/.builderos-personalisation/sona-preflight.log`) so you don't start a compile
 while one is still finishing.
 
+Check whether it succeeded — `cat ~/.builderos-personalisation/sona-preflight.status`:
+
+- `running` — still warming; watch the log
+- `ok` — build + test DB + dialyzer PLT are warm
+- `failed: <step> (exit N)` — it aborted at `<step>`; the test DB or PLT may
+  be missing. Read `sona-preflight.log` (grep `ERROR`/`FAILED` for the exact
+  failing command and line) before assuming the environment is ready.
+
+If the app misbehaves on boot, read that status FIRST — a failed preflight is
+the most likely cause.
+
 ## Databases
 
 PostgreSQL is the `postgres` docker-compose service.
