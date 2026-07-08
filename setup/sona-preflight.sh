@@ -164,8 +164,11 @@ run_preflight() {
     return 0
   fi
 
+  # docker compose must run from the project root so it finds docker-compose.yml.
+  # (No host `mkdir` here: preflight runs as a different user than the project
+  # owner, so it can't write into $project_root — and nothing in this script
+  # writes to a host logs/ dir anyway; all output goes to $sentinel_dir.)
   cd "$project_root"
-  mkdir -p logs
 
   compile_test_env="${SONA_PREFLIGHT_COMPILE_TEST_ENV:-true}"
   dialyzer_warmup="${SONA_PREFLIGHT_DIALYZER:-true}"
