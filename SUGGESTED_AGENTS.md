@@ -26,15 +26,12 @@ Docker and docker-compose are available.
 The backend runs as a long-lived service (`sona-backend`). Start it with:
 
 ```bash
-if docker compose config --services | grep -qx clickhouse; then
-  docker compose up -d --scale clickhouse=0 backend
-else
-  docker compose up -d backend
-fi
+docker compose up -d backend
 ```
 
-Avoid `docker compose up -d` without arguments unless you explicitly need the
-full stack.
+This boots ClickHouse too (backend `depends_on` it), so ClickHouse-backed
+pages (stored metrics, labour demand) work without a cryptic 500. ClickHouse
+is heavy and slows boot, but a working app beats a fast-booting broken one.
 
 Run ALL mix / test / iex / psql commands inside the already-running containers
 via `docker compose exec -T backend <cmd>` (or `… exec -T postgres …`). NEVER

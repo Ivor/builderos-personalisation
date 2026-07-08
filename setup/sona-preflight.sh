@@ -61,11 +61,7 @@ postgres_exec() {
 }
 
 start_backend() {
-  if docker_compose config --services | grep -qx clickhouse; then
-    docker_compose up -d --scale clickhouse=0 backend
-  else
-    docker_compose up -d backend
-  fi
+  docker_compose up -d backend
 }
 
 wait_for_backend_deps() {
