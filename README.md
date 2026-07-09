@@ -78,6 +78,9 @@ The script:
 - copies itself into `~/.builderos-personalisation/` and starts a background
   worker
 - returns immediately so the agent can start while Docker setup continues
+- starts the Compose `postgres` service first, on its own, so remote-DB
+  worktrees tunnelling into this VM get a listening postgres within seconds
+  of boot instead of waiting behind the full stack
 - starts the existing Compose `backend` service detached
 - avoids starting ClickHouse when the Compose file defines it
 - waits for backend dependencies to appear in the running backend container
