@@ -12,10 +12,10 @@ fast_default_opt_out = true
 [features]
 terminal_resize_reflow = true
 
-[projects."/home/dev/project"]
+[projects."/workspace/project"]
 trust_level = "trusted"
 
-[projects."/home/dev/project/backend"]
+[projects."/workspace/project/backend"]
 trust_level = "trusted"
 
 [mcp_servers.notion]

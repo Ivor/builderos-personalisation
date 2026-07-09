@@ -68,9 +68,10 @@ performs.
 
 ## Sona Preflight
 
-`setup/sona-preflight.sh` is the pre-agent setup path for Sona VMs. It only runs
-when it can find a checkout with both `docker-compose.yml` and
-`backend/start-dev.sh`.
+`setup/sona-preflight.sh` is the pre-agent setup path for Sona VMs. It targets
+the per-session branch checkout BuilderOS materialises at `/workspace/project`
+(the tree the agent edits), and only runs when that path is a Sona checkout —
+i.e. has both `docker-compose.yml` and `backend/start-dev.sh`.
 
 The script:
 
@@ -127,7 +128,8 @@ SONA_PREFLIGHT_COMPILE_TEST_ENV=false      # skip test DB prep + MIX_ENV=test co
 SONA_PREFLIGHT_DIALYZER=false              # skip dialyzer PLT warmup
 SONA_PREFLIGHT_DEPS_TIMEOUT=600            # seconds to wait for backend deps
 SONA_PREFLIGHT_POSTGRES_TIMEOUT=120        # seconds to wait for postgres
-BUILDEROS_PROJECT_ROOT=/home/dev/project
+SONA_PREFLIGHT_WAIT_DEV_SERVER=false       # skip waiting for the dev server + SONA_DEV_SERVER_READY flag
+SONA_PREFLIGHT_DEV_SERVER_TIMEOUT=300      # seconds to wait for the dev server
 ```
 
 ## FV Reference

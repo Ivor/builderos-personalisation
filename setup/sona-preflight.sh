@@ -37,25 +37,15 @@ log_step() {
   write_sentinel "$*"
 }
 
+# BuilderOS materialises the per-session branch checkout at this fixed path
+# (WORKSPACE_PATH in the orchestrator: vm_orchestrator/config.py). It is the tree
+# the agent edits and the only checkout we ever want the dev stack to serve — the
+# baked /home/dev/project sits on master and is never the working tree. The path
+# is a hardcoded constant on the BuilderOS side with no env to read it from, so
+# we hardcode it too. run_preflight's layout guard skips cleanly when this isn't
+# a Sona checkout (e.g. a non-Sona VM).
 find_project_root() {
-  if [ -n "${BUILDEROS_PROJECT_ROOT:-}" ]; then
-    printf '%s\n' "$BUILDEROS_PROJECT_ROOT"
-    return 0
-  fi
-
-  if [ -n "${PROJECT_ROOT:-}" ]; then
-    printf '%s\n' "$PROJECT_ROOT"
-    return 0
-  fi
-
-  for candidate in /home/dev/project "$HOME/project" "$PWD"; do
-    if [ -f "$candidate/docker-compose.yml" ] && [ -f "$candidate/backend/start-dev.sh" ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
+  printf '%s\n' "/workspace/project"
 }
 
 docker_compose() {
@@ -116,6 +106,47 @@ wait_for_postgres() {
   return 1
 }
 
+# The dev server is up once Phoenix is accepting TCP connections on its HTTP
+# port (published to the host as localhost:4000). A bare /dev/tcp connect avoids
+# depending on curl being installed on the host or in the container.
+wait_for_dev_server() {
+  local timeout_seconds="$1"
+  local host="${SONA_PREFLIGHT_DEV_SERVER_HOST:-localhost}"
+  local port="${SONA_PREFLIGHT_DEV_SERVER_PORT:-4000}"
+  local deadline=$((SECONDS + timeout_seconds))
+
+  log_step "waiting for dev server at ${host}:${port}"
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    # The connect runs in a subshell so its failure feeds the `if` instead of
+    # tripping the ERR trap, and the fd is closed when that subshell exits.
+    if (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null; then
+      log_step "dev server responding on ${host}:${port}"
+      return 0
+    fi
+
+    sleep 3
+  done
+
+  log_step "timed out waiting for dev server after ${timeout_seconds}s"
+  return 1
+}
+
+# Export a flag every new agent shell can read. .zshenv is sourced by every zsh
+# invocation (login/non-login, interactive or not), so once this is written the
+# flag is set in every shell the agent spawns. Presence of the var == the dev
+# server was confirmed up by the preflight.
+mark_dev_server_ready() {
+  local profile="$HOME/.zshenv"
+  local marker='export SONA_DEV_SERVER_READY=1  # set by sona-preflight once the dev server is up'
+
+  if ! grep -qF 'SONA_DEV_SERVER_READY' "$profile" 2>/dev/null; then
+    printf '%s\n' "$marker" >>"$profile"
+  fi
+
+  log_step "dev server ready; exported SONA_DEV_SERVER_READY=1 via $profile"
+}
+
 # The Postgres data volume was built with a different libc than the running
 # image, so any database cloned from the default template1 aborts with
 # "template database template1 has a collation version, but no actual collation
@@ -156,13 +187,10 @@ run_preflight() {
   local dialyzer_warmup
   local deps_timeout
   local postgres_timeout
+  local wait_dev_server
+  local dev_server_timeout
 
-  project_root="$(find_project_root || true)"
-
-  if [ -z "$project_root" ]; then
-    log_step "no Sona project checkout found; skipping"
-    return 0
-  fi
+  project_root="$(find_project_root)"
 
   if [ ! -f "$project_root/docker-compose.yml" ] || [ ! -f "$project_root/backend/start-dev.sh" ]; then
     log_step "project at $project_root is not the Sona Docker layout; skipping"
@@ -184,6 +212,8 @@ run_preflight() {
   dialyzer_warmup="${SONA_PREFLIGHT_DIALYZER:-true}"
   deps_timeout="${SONA_PREFLIGHT_DEPS_TIMEOUT:-600}"
   postgres_timeout="${SONA_PREFLIGHT_POSTGRES_TIMEOUT:-120}"
+  wait_dev_server="${SONA_PREFLIGHT_WAIT_DEV_SERVER:-true}"
+  dev_server_timeout="${SONA_PREFLIGHT_DEV_SERVER_TIMEOUT:-300}"
 
   log_step "project root: $project_root"
   log_step "starting backend via docker compose"
@@ -213,6 +243,15 @@ run_preflight() {
     backend_exec 'mix dialyzer --plt'
   else
     log_step "dialyzer PLT warmup disabled"
+  fi
+
+  # Last: confirm the dev server is actually serving and export the flag agents
+  # check. Runs after the warm steps so those never wait behind server boot.
+  if [ "$wait_dev_server" = "true" ]; then
+    wait_for_dev_server "$dev_server_timeout"
+    mark_dev_server_ready
+  else
+    log_step "dev server wait disabled"
   fi
 }
 

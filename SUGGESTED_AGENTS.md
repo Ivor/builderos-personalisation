@@ -6,14 +6,17 @@ You are working inside an isolated Firecracker microVM.
 
 - User: `dev` (passwordless sudo)
 - Shell: zsh with tmux (default prefix: `C-b`)
-- Working directory: `/home/dev/project`
+- Working directory: `/workspace/project`
 
 ## Project
 
-This is a Sona Elixir/Phoenix application. Source lives at `/home/dev/project`
-with pre-compiled dependencies. The environment starts in `/home/dev/project`,
-but references are often relative to `/home/dev/project/backend`, where the main
-application we work with lives.
+This is a Sona Elixir/Phoenix application. Source lives at `/workspace/project`
+— the per-session branch checkout BuilderOS materialises for this ticket. The
+environment starts in `/workspace/project`, but references are often relative to
+`/workspace/project/backend`, where the main application we work with lives.
+Dependencies and build artifacts are pre-compiled inside the running backend
+container (Docker named volumes), so Mix commands via `docker compose exec` are
+already warm.
 
 Do not assume Elixir, Mix, Postgres, ClickHouse, or other project runtime tools
 are installed on the VM host. Use Docker Compose for application runtime, tests,
@@ -52,6 +55,7 @@ When the environment boots, a background preflight starts the `backend` and
 - compiles the dev and test environments in the running backend container
 - prepares the `sona_test` database (see below)
 - builds the dialyzer PLTs so the first real `mix dialyzer` only does analysis
+- waits for the dev server, then exports `SONA_DEV_SERVER_READY=1`
 
 This runs in the background and never blocks you. Before compiling yourself,
 find and monitor those running compile processes (or watch
@@ -65,6 +69,18 @@ Check whether it succeeded — `cat ~/.builderos-personalisation/sona-preflight.
 - `failed: <step> (exit N)` — it aborted at `<step>`; the test DB or PLT may
   be missing. Read `sona-preflight.log` (grep `ERROR`/`FAILED` for the exact
   failing command and line) before assuming the environment is ready.
+
+To know whether the dev server (Phoenix on `http://localhost:4000`) is up, check
+the `SONA_DEV_SERVER_READY` env var in a fresh shell — the preflight exports it
+(via `~/.zshenv`) only once the server is accepting connections:
+
+```bash
+[ -n "$SONA_DEV_SERVER_READY" ] && echo "dev server up" || echo "not up yet"
+```
+
+If it is unset, the server is not up yet (still booting, or the preflight
+failed) — watch `sona-preflight.log` / `sona-preflight.status` before hitting
+`localhost:4000` or driving the browser.
 
 If the app misbehaves on boot, read that status FIRST — a failed preflight is
 the most likely cause.
