@@ -216,6 +216,15 @@ run_preflight() {
   dev_server_timeout="${SONA_PREFLIGHT_DEV_SERVER_TIMEOUT:-300}"
 
   log_step "project root: $project_root"
+
+  # Postgres FIRST, on its own: remote-DB worktrees (docker-free-worktree
+  # --remote-db) tunnel into this VM's postgres and need it seconds after boot.
+  # The full `up -d backend` below drags up the entire stack (backend,
+  # ClickHouse, satellites — minutes under post-boot IO); postgres alone starts
+  # in seconds, and the backend graph then treats it as already satisfied.
+  log_step "starting postgres via docker compose (postgres-first)"
+  docker_compose up -d postgres
+
   log_step "starting backend via docker compose"
   start_backend
 
